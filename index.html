@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="fi">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>Pelimestari – Turnaus (paikallisesti toimiva)</title>
+<meta name="theme-color" content="#111827"/>
+<style>
+:root{--bg:#0b0f19;--panel:#131a2a;--muted:#94a3b8;--text:#e5e7eb;--acc:#22c55e;--blue:#3b82f6;--red:#ef4444}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Ubuntu,"Helvetica Neue",Arial}
+.wrap{max-width:980px;margin:0 auto;padding:12px 12px 96px}
+h1{font-size:24px;margin:8px 0 12px}
+h2{font-size:18px;margin:18px 0 8px}
+.panel{background:var(--panel);border-radius:16px;padding:12px;box-shadow:0 8px 24px rgba(0,0,0,.35);margin-top:12px}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.col{flex:1 1 260px}
+input,select,textarea{width:100%;background:#0f172a;color:var(--text);border:1px solid #1f2937;border-radius:12px;padding:12px;font-size:16px}
+.btn{appearance:none;border:0;border-radius:14px;padding:12px 14px;font-weight:600;background:#1f2937;color:#fff;cursor:pointer;transition:.12s transform,.2s background}
+.btn:active{transform:scale(0.98)}
+.btn.acc{background:linear-gradient(135deg,#16a34a,#22c55e)}
+.btn.muted{background:#263143;color:#d1d5db}
+.btn.red{background:#991b1b}
+.btn.blue{background:#1d4ed8}
+.pill{display:inline-flex;align-items:center;gap:8px;background:#0f172a;border:1px solid #1f2937;border-radius:999px;padding:6px 10px;margin:4px 6px;font-size:14px}
+.pill small{color:var(--muted)}
+.kicker{font-size:12px;color:var(--muted)}
+.qcard{background:#0f172a;border:1px solid #1f2937;border-radius:16px;padding:12px}
+.chip{background:#0b1222;border:1px solid #1e293b;border-radius:999px;padding:6px 10px;font-size:12px;color:#cbd5e1}
+.sticky-bottom{position:fixed;left:0;right:0;bottom:0;background:rgba(11,15,25,.85);backdrop-filter:blur(8px);border-top:1px solid #263143}
+.tabs{display:flex;overflow:auto;gap:8px;padding:8px}
+.tab{flex:0 0 auto;padding:10px 14px;border-radius:999px;background:#0f172a;border:1px solid #1f2937;color:#cbd5e1;cursor:pointer;font-weight:600}
+.tab.active{background:linear-gradient(135deg,#1e293b,#334155);color:#fff;border-color:#475569}
+.nowrap{white-space:nowrap}
+#debugStatus{display:none;position:fixed;left:8px;right:8px;bottom:8px;padding:8px 12px;font-size:14px;text-align:center;background:#7f1d1d;color:#fff;border:1px solid #1f2937;border-radius:10px;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+#progress{min-width:70px;text-align:right}
+.scoregrid{display:grid;gap:8px}
+</style>
+  <link rel="manifest" href="/pikkujoulukisa/manifest.webmanifest"/>
+  <link rel="apple-touch-icon" href="/pikkujoulukisa/icons/icon-192.png"/>
+</head>
+<body>
+<div class="wrap">
+  <h1>🎉 Pelimestari – Turnaus</h1>
+  <p class="kicker">Pelaajat & joukkueet (pelaaja voi kuulua vain yhteen joukkueeseen), turnauslista, yhteinen pistetaulukko, erillinen joukkuepistelaskuri, JSON-vienti/tuonti. Optimoitu kosketukselle.</p>
+
+  <div class="panel">
+    <div class="row">
+      <div class="col">
+        <h2>Pelaajat</h2>
+        <div class="row">
+          <input id="playerName" placeholder="Uuden pelaajan nimi"/>
+          <button class="btn acc" id="addPlayerBtn">Lisää</button>
+          <button class="btn red" id="resetPlayersBtn">Nollaa pelaajat</button>
+        </div>
+        <div id="players" style="margin-top:8px"></div>
+      </div>
+      <div class="col">
+        <h2>Joukkueet</h2>
+        <div class="row">
+          <input id="teamName" placeholder="Uuden joukkueen nimi"/>
+          <button class="btn blue" id="addTeamBtn">Lisää joukkue</button>
+          <button class="btn red" id="resetTeamsBtn">Nollaa joukkueet</button>
+        </div>
+        <div id="teams" style="margin-top:8px"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Turnaus</h2>
+    <div class="row">
+      <div class="col">
+        <label class="kicker">Pistetaulukko</label>
+        <select id="scoreMode">
+          <option value="players">Pelaajat</option>
+          <option value="teams">Joukkueet</option>
+        </select>
+      </div>
+      <div class="col">
+        <label class="kicker">Turnaustila</label>
+        <select id="tMode">
+          <option value="shuffle">Sekoita valitut pelit</option>
+          <option value="ordered">Järjestyksessä (valinnan mukaan)</option>
+        </select>
+      </div>
+    </div>
+    <div style="margin-top:8px">
+      <label class="kicker">Valitse pelit turnaukseen</label>
+      <div id="gamelist" class="row"></div>
+      <div class="row" style="margin-top:6px">
+        <button class="btn acc" id="startTournamentBtn">Aloita turnaus</button>
+        <button class="btn muted" id="selectAllBtn">Valitse kaikki</button>
+        <button class="btn muted" id="clearSelBtn">Tyhjennä valinnat</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Pelaa</h2>
+    <div class="row" style="align-items:center;justify-content:space-between">
+      <div id="currentGame" class="pill">–</div>
+      <div class="kicker" id="progress">0 / 0</div>
+    </div>
+    <div id="cardArea" class="qcard" style="margin-top:8px">Valitse pelit ja aloita turnaus.</div>
+    <div class="row" style="margin-top:8px">
+      <button class="btn" id="prevBtn">◀️ Edellinen</button>
+      <button class="btn acc" id="nextBtn">▶️ Seuraava</button>
+      <button class="btn muted" id="cheaterBtn">🎲 Arvo huijari</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Pisteet</h2>
+    <div class="row">
+      <button class="btn" id="resetScoresBtn">Nollaa pisteet</button>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <div class="col">
+        <div class="kicker">Pelaajien pisteet</div>
+        <div id="scorePlayers" class="scoregrid"></div>
+      </div>
+      <div class="col">
+        <div class="kicker">Joukkueiden pisteet</div>
+        <div id="scoreTeams" class="scoregrid"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Tallennus • JSON</h2>
+    <div class="row">
+      <button class="btn acc" id="exportBtn">💾 Vie JSON</button>
+      <input type="file" id="importFile" accept="application/json"/>
+      <button class="btn blue" id="importBtn">📥 Tuo JSON</button>
+      <button class="btn" id="clearAllBtn">🧹 Tyhjennä kaikki</button>
+    </div>
+    <p class="kicker">Automaattinen paikallinen tallennus käytössä (localStorage). JSON-vienti luo lataustiedoston puhelimeen.</p>
+  </div>
+</div>
+
+<div class="sticky-bottom">
+  <div class="tabs">
+    <button class="tab active" data-target="#top">Ylös</button>
+    <button class="tab" data-target="#players">Pelaajat</button>
+    <button class="tab" data-target="#teams">Joukkueet</button>
+    <button class="tab" data-target="#cardArea">Pelaa</button>
+    <button class="tab" data-target="#scorePlayers">Pisteet</button>
+  </div>
+</div>
+
+<div id="debugStatus">⚠️ JavaScript-virhe</div>
+
+<script>
+/* ---- Kysymyspankit (upotettu) ---- */
+
+const Data = {
+  musicQuiz: [{cat:'Timo', q:'Mikä on Lil Waynen oikea nimi?', a:'Dwayne Michael Carter Jr.'},{cat:'Timo', q:'Milloin Lil Wayne syntyi?', a:'27. syyskuuta 1982'},{cat:'Timo', q:'Missä kaupungissa Lil Wayne syntyi?', a:'New Orleans, Louisiana, Yhdysvallat'},{cat:'Timo', q:'Kuinka monta lasta Lil Waynellä on?', a:'4'},{cat:'Timo', q:'Millä nimellä Lil Wayne perusti oman levy-yhtiönsä?', a:'Young Money Entertainment'},{cat:'Timo', q:'Milloin Lil Wayne julkaisi ensimmäisen sooloalbuminsa Tha Block Is Hot?', a:'1999'},{cat:'Timo', q:'Mikä oli Lil Waynen ensimmäinen Billboard Hot 100 -listan ykköshitti pääartistina?', a:'"Lollipop" (2008)'},{cat:'Timo', q:'Mikä Lil Waynen albumi voitti Grammy-palkinnon parhaasta rap-albumista?', a:'Tha Carter III (2008)'},{cat:'Timo', q:'Kuinka monta Grammy-palkintoa Lil Wayne on voittanut?', a:'5'},{cat:'Timo', q:'Mikä on Lil Waynen lempinimi, jota hän käyttää usein kappaleissa?', a:'Weezy (tai Weezy F. Baby)'},{cat:'Tepa', q:'Mikä on Cheekin oikea nimi?', a:'Jare Henrik Tiihonen'},{cat:'Tepa', q:'Milloin Cheek syntyi?', a:'22. joulukuuta 1981'},{cat:'Tepa', q:'Mikä oli Cheekin ensimmäinen albumi?', a:'Avaimet mun kulmille (2004)'},{cat:'Tepa', q:'Mikä levy-yhtiö julkaisi Cheekin ensimmäiset albumit?', a:'Sony Music Finland'},{cat:'Tepa', q:'Mikä on Cheekin 2008 julkaistu albumi, joka nousi hänen läpimurrokseen?', a:'Kuka sä oot'},{cat:'Tepa', q:'Mikä on Cheekin omaelämäkerran nimi, joka julkaistiin vuonna 2016?', a:'JHT – Musta lammas'},{cat:'Tepa', q:'Mikä oli Cheekin uran viimeinen albumi?', a:'Alpha Omega (2015)'},{cat:'Tepa', q:'Mikä on Cheekin oma kustannusyhtiö ja levy-yhtiö?', a:'Liiga Music Oy'},{cat:'Tepa', q:'Kuinka monta kertaa Cheek on voittanut Emma-palkinnon?', a:'10 kertaa'},{cat:'Tepa', q:'Minä vuonna ilmestyi Cheekin elämästä kertova elokuva Veljeni vartija?', a:'2018'},{cat:'Tiina', q:'Mikä on The Weekndin oikea nimi?', a:'Abel Makkonen Tesfaye'},{cat:'Tiina', q:'Milloin The Weeknd syntyi?', a:'16. helmikuuta 1990'},{cat:'Tiina', q:'Missä kaupungissa The Weeknd syntyi?', a:'Toronto, Ontario, Kanada'},{cat:'Tiina', q:'Mistä maasta The Weekndin vanhemmat ovat kotoisin?', a:'Etiopiasta'},{cat:'Tiina', q:'Mikä oli The Weekndin ensimmäinen studioalbumi?', a:'Kiss Land (2013)'},{cat:'Tiina', q:'Mikä oli The Weekndin ensimmäinen Billboard Hot 100 -listan ykköshitti?', a:'Can’t Feel My Face (2015)'},{cat:'Tiina', q:'Mikä albumi sisälsi kappaleen Blinding Lights?', a:'After Hours (2020)'},{cat:'Tiina', q:'Kuinka monta Grammy-palkintoa The Weeknd on voittanut syyskuuhun 2023 mennessä?', a:'4'},{cat:'Tiina', q:'Mihin Guinnessin maailmanennätykseen The Weeknd pääsi vuonna 2023?', a:'Maailman suosituin artisti Spotifyssa (eniten kuuntelijoita kuukaudessa)'},{cat:'Tiina', q:'Mikä on The Weekndin oma levy-yhtiö?', a:'XO Records'},{cat:'Roosa', q:'Milloin Kuumaa perustettiin?', a:'Vuonna 2016.'},{cat:'Roosa', q:'Mikä on Harry Stylesin koko nimi?', a:'Harry Edward Styles'},{cat:'Roosa', q:'Milloin Harry Styles syntyi?', a:'1. helmikuuta 1994'},{cat:'Roosa', q:'Missä kaupungissa Harry Styles syntyi?', a:'Redditch, Worcestershire, Englanti'},{cat:'Roosa', q:'Mikä oli Harry Stylesin ensimmäinen soolosingle?', a:'Sign of the Times (2017)'},{cat:'Roosa', q:'Mikä oli Harry Stylesin ensimmäinen sooloalbumi?', a:'Harry Styles (2017)'},{cat:'Roosa', q:'Mikä elokuva merkitsi Harry Stylesin näyttelijädebyyttiä?', a:'Dunkirk (2017)'},{cat:'Roosa', q:'Kuinka monta Grammy-palkintoa Harry Styles on voittanut?', a:'3'},{cat:'Roosa', q:'Mikä oli Harry Stylesin toinen studioalbumi?', a:'Fine Line (2019)'},{cat:'Roosa', q:'Milloin Kuumaan debyyttialbumi “Kuumaa” julkaistiin?', a:'26. huhtikuuta 2019.'}],
+  codebreaker: [{q:'LOGIIKKAKOODI', a:'Kysymys: “Mikä seuraa sarjassa? 2, 4, 8, 16, …”'},{q:'PIIRROSKOODi', a:'Piirrettävä sana: Juna'},{q:'SANAKOODI: Kolme vihjettä', a:'Vihjeet: “Vihreä. Pyöreä. Kasvaa puussa.”'},{q:'Tuomari lukee 12 numeron sarjan rytmillä:', a:'Joukkueet kirjoittavat sen ulkomuistista.'},{q:'PIIRROSKOODI', a:'Piirrettävä sana: Avain'},{q:'SANAKOODI: Arvoitus', a:'Arvoitus: “Se ei hengitä mutta tarvitsee ilmaa. Se ei elä mutta kuolee vedessä.”'},{q:'SANAKOODI:', a:'Sana kolmesta vihjeestä'},{q:'Logiikkakoodi – Kellotehtävä', a:'Vihje: 90 minuuttia klo 13:40 jälkeen?'},{q:'Muistikoodi – 7 numeroa', a:'Näytä 12 s: 8 2 5 5 1 4 9.'},{q:'Mistä tulee sana fysiikka?', a:'vastaus: Sana “fysiikka” tulee kreikan kielen sanasta “physis” (φύσις), joka tarkoittaa luontoa tai luonnon ominaisuutta.'},{q:'Selitä mitä tarkoittaa demokratia', a:'vastaus: Demokratia tarkoittaa kansanvaltaa — järjestelmää, jossa valta kuuluu kansalle.'},{q:'Mikä on mailman suurin meri?', a:'vastaus: tyynimeri'}],
+  drawAndGuess: ['Kissa','Juna','Aurinko','Talo','Jäätelö','Kynä','Sateenkaari','Lentokone','Kala','Puhelin','Hammasharja','Suklaa','Kirja','Järvi','Pöytä','Auto','Omena','Pilvi','Pallo','Koira','Vuori','Sateenvarjo','Raketti','Leijona','Joulukuusi','Polkupyörä','Lamppu','Robotti','Televisio','Kamera','Kakku','Kirahvi','Piano','Silmälasit','Jääkarhu','Avain','Merirosvo','Tulivuori','Prinsessa','Avaruusasema'],
+  aliasForbidden: [{word:'Joulukuusi', ban:'[\'vihreä\', \'koristeet\', \'havu\']'},{word:'Tonttu', ban:'[\'punainen\', \'apulainen\', \'pukki\']'},{word:'Piparkakku', ban:'[\'leivonnainen\', \'mauste\', \'taikina\']'},{word:'Joulupukki', ban:'[\'poro\', \'lahja\', \'Korvatunturi\']'},{word:'Lumiukko', ban:'[\'lumi\', \'porkkana\', \'pallo\']'},{word:'Glögi', ban:'[\'juoma\', \'kuuma\', \'mausteinen\']'},{word:'Joululaulu', ban:'[\'laulaa\', \'kertosäe\', \'soittaa\']'},{word:'Lahjapaperi', ban:'[\'kääriä\', \'paketti\', \'teippi\']'},{word:'Kuusenjalka', ban:'[\'tuki\', \'vesi\', \'seisoo\']'},{word:'Joulutorttu', ban:'[\'luumu\', \'tähtimuoto\', \'uuni\']'},{word:'Adventtikynttilä', ban:'[\'neljä\', \'sunnuntai\', \'palaa\']'},{word:'Pukinreki', ban:'[\'lentää\', \'taivas\', \'poro\']'},{word:'Joulukortti', ban:'[\'tervehdys\', \'postimerkki\', \'lähettää\']'},{word:'Suklaakalenteri', ban:'[\'luukku\', \'makeinen\', \'päivä\']'},{word:'Joulupukin paja', ban:'[\'valmistaa\', \'lelu\', \'työ\']'},{word:'Reen kello', ban:'[\'kilinä\', \'ääni\', \'hevonen\']'},{word:'Jouluvalo', ban:'[\'kirkas\', \'ikkuna\', \'koristelu\']'},{word:'Lanttulaatikko', ban:'[\'ruoka\', \'uuni\', \'laatikko\']'},{word:'Joulumarkkinat', ban:'[\'myynti\', \'tori\', \'glögi\']'},{word:'Jouluyö juhlayö', ban:'[\'laulu\', \'klassikko\', \'hiljainen\']'},{word:'Koristepallo', ban:'[\'kuusi\', \'ripustaa\', \'kimaltava\']'},{word:'Enkeli', ban:'[\'siivet\', \'taivas\', \'valkoinen\']'},{word:'Kaneli', ban:'[\'mauste\', \'tuoksu\', \'ruskea\']'},{word:'Jouluateria', ban:'[\'pöytä\', \'ruoka\', \'perhe\']'},{word:'Kinkku', ban:'[\'liha\', \'uuni\', \'paisti\']'},{word:'Seimi', ban:'[\'Jeesus\', \'syntymä\', \'talli\']'},{word:'Joulukuu', ban:'[\'kuukausi\', \'kalenteri\', \'talvi\']'},{word:'Jouluvalot', ban:'[\'kuusi\', \'pimeä\', \'sähkö\']'},{word:'Lumisade', ban:'[\'hiutale\', \'taivas\', \'kylmä\']'},{word:'Kuusenkoriste', ban:'[\'oksa\', \'pallo\', \'ripustaa\']'},{word:'Tonttulakki', ban:'[\'punainen\', \'päähine\', \'tupsu\']'},{word:'Kulkuset', ban:'[\'soitin\', \'ääni\', \'laulu\']'},{word:'Jouluelokuva', ban:'[\'katsoa\', \'tv\', \'tarina\']'},{word:'Joulupäivä', ban:'[\'aatto\', \'seuraava\', \'rauha\']'},{word:'Jouluateria', ban:'[\'syödä\', \'herkku\', \'pöytä\']'},{word:'Joululahja', ban:'[\'antaa\', \'paketti\', \'yllätys\']'},{word:'Glögimauste', ban:'[\'juoma\', \'kaneli\', \'neilikka\']'},{word:'Tähdenlento', ban:'[\'taivas\', \'yö\', \'toivoa\']'},{word:'Lumiukon nenä', ban:'[\'porkkana\', \'oranssi\', \'kasvot\']'},{word:'Joulumieli', ban:'[\'ilo\', \'lämpö\', \'antaminen\']'}].map(x=>{ if(typeof x.ban==='string'){ x.ban=x.ban.split(',').map(s=>s.trim()).filter(Boolean); } return x; }),
+  spyPrompts: ['1. Minkä auton haluaisit omistaa? / Minkä auton näet usein liikenteessä?','2. Missä kaupungissa haluaisit asua? / Missä kaupungissa olet joskus käynyt?','3. Mikä eläin kuvastaa sinua parhaiten? / Mikä eläin sopisi lemmikiksi?','4. Mikä elokuva on jäänyt mieleesi? / Mikä elokuva haluaisit nähdä?','5. Mikä ruoka lohduttaa sinua? / Mikä ruoka syöt mieluiten ravintolassa?','7. Minkä laulun osaat ulkoa? / Minkä laulun olet kuullut viimeksi?','8. Mikä oli hauskin koulumuistosi? / Mikä oli oudoin koulumuistosi?','9. Mikä on paras paikka kotona rentoutua? / Missä vietät kotona eniten aikaa?','10. Kenen kanssa haluaisit matkustaa? / Kenen kanssa et ole vielä matkustanut mutta haluaisit?','12. Minkä tv-sarjan katsoit viimeksi? / Minkä tv-sarjan suosittelisit muille?','14. Minkä urheilulajin seuraaminen on hauskaa? / Minkä urheilulajin pelaaminen on hauskaa?','16. Minkä maan ruokaa rakastat? / Minkä maan ruokaa olet syönyt harvoin?','17. Mikä asia saa sinut nauramaan? / Mikä asia saa sinut hämilleen?','18. Mikä juhla on sinulle tärkeä? / Minkä juhlan unohdat helposti?','19. Minkä taidon osaat hyvin? / Minkä taidon haluaisit oppia?','20. Mikä paikka luonnossa on kaunis? / Missä paikassa luonnossa haluaisit käydä?','21. Minkä työkalun tarvitset usein? / Minkä työkalun opettelisit käyttämään?','22. Mikä kouluaine oli helppoa? / Mikä kouluaine oli haastavaa?','23. Minkä urheiluvälineen omistat? / Minkä urheiluvälineen haluaisit omistaa?','24. Minkä keksinnön arjessa arvostat? / Minkä keksinnön puuttumista et huomaisi heti?','25. Missä kaupungissa haluaisit käydä uudestaan? / Missä kaupungissa et ole vielä ollut?','26. Mikä ääni rauhoittaa sinua? / Mikä ääni herättää sinut?','27. Minkä lelun muistat lapsuudesta? / Minkä lelun olisit halunnut?','28. Minkä julkisen rakennuksen muistat hyvin? / Minkä julkisen rakennuksen näet usein?','29. Mikä nimi on kaunis? / Mikä nimi on erikoinen?','30. Mikä somekanava on hyödyllinen? / Minkä somekanavan käyttö on sinulle harvinaista?','32. Mikä eläin sopii maatilalle? / Mikä eläin sopii metsään?','33. Minkä kulkuvälineen valitsisit lomalle? / Minkä kulkuvälineen valitsisit arkeen?','34. Mikä asia tuo sinulle nostalgiaa? / Mikä asia liittyy tulevaisuuden haaveisiin?','35. Minkä ammatin olet nähnyt läheltä? / Minkä ammatin olet nähnyt vain tv:ssä?','36. Mikä numero on sinulle tärkeä? / Minkä numeron valitsisit sattumalta?','37. Minkä juoman tilaat kahvilassa? / Minkä juoman juot kotona?','38. Minkä julkkiksen tunnistat heti? / Minkä julkkiksen nimeä et aina muista?','39. Minkä elämyksen haluaisit kokea uudestaan? / Minkä elämyksen haluaisit kokea ensimmäistä kertaa?','40. Minkä asian teet mielelläsi yksin? / Minkä asian teet mieluiten muiden kanssa?'],
+  spyEasyPairs: [['Koira','Susi'],['Juna','Metro'],['Kahvi','Tee'],['Kynä','Tussi'],['Metsä','Puisto'],['Leipä','Sämpylä'],['Kissa','Leijona'],['Kirja','Lehti'],['Kello','Ajastin'],['Meri','Järvi'],['Pöytä','Penkki'],['Talo','Mökki'],['Lumi','Räntä'],['Auto','Bussi'],['Puhelin','Tabletti'],['Leipuri','Kokki'],['Jäätelö','Sorbetti'],['Kakku','Piirakka'],['Sade','Ukkonen'],['Aurinko','Kuu'],['Polvi','Nilkka'],['Silmälasit','Aurinkolasit'],['Sänky','Sohva'],['Tietokone','Kannettava'],['Joki','Puro'],['Kuningas','Prinssi'],['Omena','Päärynä'],['Viulu','Kitara'],['Suihku','Kylpy'],['Maali','Väri'],['Paperi','Kartonkki'],['Karkki','Suklaa'],['Keittiö','Ruokasali'],['Talo','Kerrostalo'],['Tanssi','Jooga'],['Juusto','Voi'],['Kynttilä','Lamppu'],['Kirahvi','Zebra'],['Laiva','Vene'],['Lääkärin vastaanotto','Sairaala']],
+  spyHard: [{group:'Koira', spy:'Lentokone'},{group:'Kynä', spy:'Krokotiili'},{group:'Omena', spy:'Tietokone'},{group:'Järvi', spy:'Hattara'},{group:'Auto', spy:'Poro'},{group:'Leipä', spy:'Teleskooppi'},{group:'Talo', spy:'Avokado'},{group:'Kahvi', spy:'Kitaristi'},{group:'Kissa', spy:'Vuoristorata'},{group:'Metsä', spy:'Mikroaaltouuni'},{group:'Kello', spy:'Peruna'},{group:'Kirja', spy:'Avaruusasema'},{group:'Jäätelö', spy:'Sammakko'},{group:'Pöytä', spy:'Tornado'},{group:'Puhelin', spy:'Kurkku'},{group:'Laiva', spy:'Pölynimuri'},{group:'Aurinko', spy:'Kirahvi'},{group:'Lasi', spy:'Hämähäkki'},{group:'Vesi', spy:'Lentäjä'},{group:'Juna', spy:'Pizza'},{group:'Kakku', spy:'Vuori'},{group:'Suklaa', spy:'Linnunpesä'},{group:'Jalkapallo', spy:'Siirappi'},{group:'Maalaus', spy:'Moottorisaha'},{group:'Ovi', spy:'Krokotiili'},{group:'Avain', spy:'Pilvi'},{group:'Juusto', spy:'Valaistus'},{group:'Taivas', spy:'Kaktus'},{group:'Kynttilä', spy:'Robotinjalka'},{group:'Tietokone', spy:'Kenguru'},{group:'Silta', spy:'Joulupukki'},{group:'Kalenteri', spy:'Sammal'},{group:'Kartta', spy:'Sateenkaari'},{group:'Kirahvi', spy:'Hiuslenkki'},{group:'Naula', spy:'Kaneli'},{group:'Kampa', spy:'Lentohiekka'},{group:'Silmälasit', spy:'Karhu'},{group:'Jäähalli', spy:'Banaani'},{group:'Hammasharja', spy:'Raketti'},{group:'Nuotio', spy:'Lintu'}]
+};
+
+
+/* ---- Tila ---- */
+const state = {
+  players: [],
+  teams: [], // {name, members:[]}
+  scoresPlayers: {}, // erillinen
+  scoresTeams: {}, // erillinen
+  selectedGames: new Set(),
+  deck: [],
+  idx: 0,
+  currentCheater: null
+};
+
+/* ---- Util ---- */
+function el(html){const t=document.createElement('template');t.innerHTML=html.trim();return t.content.firstChild;}
+function shuffle(a){const arr=[...a]; for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]];} return arr;}
+function save(){localStorage.setItem('pelimestari_turnaus_local_ok', JSON.stringify({...state, selectedGames:[...state.selectedGames]}));}
+function load(){try{const s=JSON.parse(localStorage.getItem('pelimestari_turnaus_local_ok')); if(s){ Object.assign(state,s); state.selectedGames=new Set(s.selectedGames||[]);} }catch(e){}}
+function showError(e){const dbg=document.getElementById('debugStatus'); dbg.style.display='block'; dbg.textContent='⚠️ JavaScript-virhe: '+e;}
+
+/* ---- Pelaajat & joukkueet ---- */
+function renderPlayers(){
+  const box=document.getElementById('players'); box.innerHTML='';
+  state.players.forEach((p,i)=>{
+    box.appendChild(el(`<span class="pill">${p} <small>#${i+1}</small> <button class="btn red" data-act="remove-player" data-index="${i}" style="padding:4px 8px">Poista</button></span>`));
+  });
+  renderTeams();
+  renderScoreboards();
+}
+function addPlayerFromInput(){
+  const i=document.getElementById('playerName'); const v=i.value.trim(); if(!v) return;
+  if(state.players.includes(v)) return alert('Pelaaja on jo olemassa');
+  state.players.push(v); if(!(v in state.scoresPlayers)) state.scoresPlayers[v]=0; i.value=''; save(); renderPlayers();
+}
+function removePlayer(idx){
+  const name=state.players[idx];
+  state.teams.forEach(t=>{ t.members = (t.members||[]).filter(m=>m!==name); });
+  delete state.scoresPlayers[name];
+  state.players.splice(idx,1);
+  save(); renderPlayers();
+}
+function resetPlayers(){
+  if(!confirm('Poistetaanko kaikki pelaajat?')) return;
+  state.players=[]; state.scoresPlayers={}; state.teams.forEach(t=>t.members=[]);
+  save(); renderPlayers();
+}
+
+function renderTeams(){
+  const box=document.getElementById('teams'); box.innerHTML='';
+  state.teams.forEach((t,i)=>{
+    const members=(t.members||[]).map(m=>`<span class='chip'>${m}</span>`).join('') || '<span class="kicker">Ei jäseniä</span>';
+    const card=el(`<div class='qcard' data-team-index="${i}">
+      <div class='row' style='align-items:center;justify-content:space-between'>
+        <strong>${t.name}</strong>
+        <div class='row'>
+          <button class='btn red' data-act='remove-team' data-index='${i}'>Poista</button>
+        </div>
+      </div>
+      <div class='row' style='margin-top:6px'>${members}</div>
+      <div class='row' style='margin-top:6px'>
+        <select data-act='member-select' data-index='${i}'></select>
+        <button class='btn' data-act='add-member' data-index='${i}'>Lisää pelaaja</button>
+      </div>
+    </div>`);
+    box.appendChild(card);
+  });
+  // Täytä valitsimet vapaille pelaajille
+  const assigned=new Set(state.teams.flatMap(t=>t.members||[]));
+  document.querySelectorAll('[data-act="member-select"]').forEach(sel=>{
+    const i=Number(sel.dataset.index);
+    const options=state.players.filter(p=>!assigned.has(p));
+    sel.innerHTML = options.map(p=>`<option>${p}</option>`).join('') || '<option disabled>Ei lisättäviä</option>';
+  });
+}
+function addTeamFromInput(){
+  const i=document.getElementById('teamName'); const v=i.value.trim(); if(!v) return;
+  if(state.teams.some(t=>t.name===v)) return alert('Joukkue on jo olemassa');
+  state.teams.push({name:v, members:[]});
+  if(!(v in state.scoresTeams)) state.scoresTeams[v]=0;
+  i.value=''; save(); renderTeams(); renderScoreboards();
+}
+function removeTeam(idx){
+  const name=state.teams[idx].name;
+  delete state.scoresTeams[name];
+  state.teams.splice(idx,1);
+  save(); renderTeams(); renderScoreboards();
+}
+function resetTeams(){
+  if(!confirm('Poistetaanko kaikki joukkueet?')) return;
+  state.teams=[]; state.scoresTeams={};
+  save(); renderTeams(); renderScoreboards();
+}
+function addMember(i){
+  const sel=document.querySelector(`[data-act="member-select"][data-index="${i}"]`);
+  const val=sel && sel.value;
+  if(!val) return;
+  const already = state.teams.some(t=> (t.members||[]).includes(val) );
+  if(already) return alert('Tämä pelaaja on jo toisessa joukkueessa');
+  state.teams[i].members.push(val);
+  save(); renderTeams();
+}
+
+/* ---- Pisteet ---- */
+function renderScoreboards(){
+  const pb=document.getElementById('scorePlayers'); pb.innerHTML='';
+  state.players.forEach(name=>{
+    if(!(name in state.scoresPlayers)) state.scoresPlayers[name]=0;
+    pb.appendChild(el(`<div class='row' style='align-items:center;justify-content:space-between'>
+      <div><strong>${name}</strong></div>
+      <div class='pill'>${state.scoresPlayers[name]}</div>
+      <div class='row'>
+        <button class='btn acc' data-act='p+1' data-name='${name}'>+1</button>
+        <button class='btn' data-act='p+...' data-name='${name}'>+…</button>
+        <button class='btn red' data-act='p-1' data-name='${name}'>−1</button>
+      </div>
+    </div>`));
+  });
+  const tb=document.getElementById('scoreTeams'); tb.innerHTML='';
+  state.teams.forEach(t=>{
+    if(!(t.name in state.scoresTeams)) state.scoresTeams[t.name]=0;
+    tb.appendChild(el(`<div class='row' style='align-items:center;justify-content:space-between'>
+      <div><strong>${t.name}</strong></div>
+      <div class='pill'>${state.scoresTeams[t.name]}</div>
+      <div class='row'>
+        <button class='btn acc' data-act='t+1' data-name='${t.name}'>+1</button>
+        <button class='btn' data-act='t+...' data-name='${t.name}'>+…</button>
+        <button class='btn red' data-act='t-1' data-name='${t.name}'>−1</button>
+      </div>
+    </div>`));
+  });
+}
+function addPtsPlayer(name,delta){ if(!(name in state.scoresPlayers)) state.scoresPlayers[name]=0; state.scoresPlayers[name]+=delta; save(); renderScoreboards(); }
+function addPtsTeam(name,delta){ if(!(name in state.scoresTeams)) state.scoresTeams[name]=0; state.scoresTeams[name]+=delta; save(); renderScoreboards(); }
+function resetScores(){ if(!confirm('Nollataanko kaikki pisteet (pelaajat + joukkueet)?')) return; state.scoresPlayers={}; state.scoresTeams={}; save(); renderScoreboards(); }
+
+/* ---- Pelit & turnaus ---- */
+const games = [
+  {id:'music', name:'🎵 Musiikki-visa', pool:()=>Data.musicQuiz.map(x=>({type:'qa', title:x.cat, q:x.q, a:x.a}))},
+  {id:'code', name:'🧩 Koodinmurto', pool:()=>Data.codebreaker.map(x=>({type:'qa', title:'Koodinmurto', q:x.q, a:x.a}))},
+  {id:'draw', name:'✏️ Piirrä & arvaa', pool:()=>Data.drawAndGuess.map(w=>({type:'prompt', title:'Piirrä tämä', prompt:w}))},
+  {id:'alias', name:'🚫 Alias kielletyillä sanoilla', pool:()=>Data.aliasForbidden.map(it=>({type:'alias', title:it.word, ban:it.ban}))},
+  {id:'spyfree', name:'🕵️ Huijari – keskusteluteema', pool:()=>Data.spyPrompts.map(p=>({type:'spyfree', prompt:p}))},
+  {id:'spyeasy', name:'🕵️ Huijari – helppo', pool:()=>Data.spyEasyPairs.map(([a,b])=>({type:'spypair', a,b}))},
+  {id:'spyhard', name:'🕵️ Huijari – vaikea', pool:()=>Data.spyHard.map(x=>({type:'spyhard', group:x.group, spy:x.spy}))},
+];
+function renderGameList(){
+  const box=document.getElementById('gamelist'); box.innerHTML='';
+  games.forEach(g=>{
+    const checked=state.selectedGames.has(g.id) ? 'checked' : '';
+    box.appendChild(el(`<label class="qcard" style="display:flex;gap:10px;align-items:center">
+      <input type="checkbox" data-act="toggle-game" data-id="${g.id}" ${checked}/>
+      <div><strong>${g.name}</strong><div class="kicker">${g.pool().length} korttia</div></div>
+    </label>`));
+  });
+}
+function buildDeck(){ const list=[]; state.selectedGames.forEach(id=>{ const g=games.find(x=>x.id===id); if(!g) return; const pool=g.pool(); pool.forEach(item=>{ item._game=id; item._gameName=g.name; }); list.push(...pool); }); return list; }
+function startTournament(){
+  if(state.selectedGames.size===0){ alert('Valitse vähintään yksi peli'); return; }
+  const mode=document.getElementById('tMode').value;
+  const base=buildDeck();
+  state.deck = (mode==='shuffle') ? shuffle(base) : base;
+  state.idx=0; save(); renderCard();
+}
+function prevItem(){ if(state.idx>0){ state.idx--; renderCard(); save(); } }
+function nextItem(){ if(state.idx<state.deck.length-1){ state.idx++; renderCard(); save(); } }
+function renderCard(){
+  const area=document.getElementById('cardArea');
+  const cur=state.deck[state.idx];
+  document.getElementById('progress').textContent = (state.deck.length? (state.idx+1):0) + " / " + state.deck.length;
+  if(!cur){ area.textContent='Ei sisältöä – valitse pelit ja aloita turnaus.'; document.getElementById('currentGame').textContent='–'; return; }
+  document.getElementById('currentGame').textContent = cur._gameName || '–';
+  let html='';
+  if(cur.type==='qa'){
+    html = `<div><div class='kicker'>${cur.title}</div><div style='font-size:18px;margin:6px 0'><strong>Kysymys:</strong> ${cur.q}</div><div class='muted'>Vastaus näkyy alla jatkuvasti</div><div style='margin-top:6px'>✅ <strong>Vastaus:</strong> ${cur.a}</div></div>`;
+  } else if(cur.type==='prompt'){
+    html = `<div><div class='kicker'>${cur.title}</div><div style='font-size:22px;margin:6px 0'>🖍️ <strong>${cur.prompt}</strong></div><div class='muted'>Piirrä ja anna muiden arvata</div>`;
+  } else if(cur.type==='alias'){
+    html = `<div><div class='kicker'>Alias</div><div style='font-size:22px;margin:6px 0'><strong>${cur.title}</strong></div><div>⛔ Kielletyt: <span class='chip'>${cur.ban.join('</span> <span class="chip">')}</span></div>`;
+  } else if(cur.type==='spyfree'){
+    html = `<div><div class='kicker'>Huijari – keskusteluteema</div><div style='font-size:18px;margin:6px 0'>${cur.prompt}</div><div class='muted'>Arvo huijari tälle kierrokselle painamalla ”Arvo huijari”.</div>`;
+  } else if(cur.type==='spypair'){
+    html = `<div><div class='kicker'>Huijari – helppo</div><div class='row'><div class='qcard col'><div class='kicker'>Kolmen pelaajan sana</div><div style='font-size:22px'><strong>${cur.a}</strong></div></div><div class='qcard col'><div class='kicker'>Huijarin sana</div><div style='font-size:22px'><strong>${cur.b}</strong></div></div></div><div class='muted' style='margin-top:6px'>Jaa salasanat pelaajille, arvo huijari.</div>`;
+  } else if(cur.type==='spyhard'){
+    html = `<div><div class='kicker'>Huijari – vaikea</div><div class='row'><div class='qcard col'><div class='kicker'>Kolmen pelaajan sana</div><div style='font-size:22px'><strong>${cur.group}</strong></div></div><div class='qcard col'><div class='kicker'>Huijarin sana</div><div style='font-size:22px'><strong>${cur.spy}</strong></div></div></div><div class='muted' style='margin-top:6px'>Jaa sanat salaisesti. Huijari ei tiedä ryhmäsanaa.</div>`;
+  }
+  area.innerHTML = html;
+}
+function rollCheater(){
+  const pool = document.getElementById('scoreMode').value==='teams' ? state.teams.map(t=>t.name) : state.players;
+  if(pool.length===0){ alert('Lisää ensin '+(document.getElementById('scoreMode').value==='teams'?'joukkueita':'pelaajia')); return; }
+  const r = pool[Math.floor(Math.random()*pool.length)];
+  state.currentCheater = r; save();
+  alert('Huijari tällä kierroksella: '+r);
+}
+
+/* ---- JSON ---- */
+function exportJSON(){ const payload={state, exportedAt:new Date().toISOString(), app:'Pelimestari turnaus local'}; const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='pelimestari_turnaus_'+Date.now()+'.json'; a.click(); setTimeout(()=>URL.revokeObjectURL(url),4000); }
+function importJSON(){ const f=document.getElementById('importFile').files[0]; if(!f) return alert('Valitse JSON'); const r=new FileReader(); r.onload=()=>{ try{ const p=JSON.parse(r.result); if(p && p.state){ Object.assign(state,p.state); state.selectedGames=new Set(p.state.selectedGames||[...state.selectedGames]); save(); afterLoad(); alert('Tiedot tuotu!'); } else alert('Virheellinen JSON'); }catch(e){ alert('Luku epäonnistui'); } }; r.readAsText(f); }
+function clearAll(){ if(!confirm('Tyhjennetäänkö kaikki tiedot ja asetukset?')) return; localStorage.removeItem('pelimestari_turnaus_local_ok'); location.reload(); }
+
+/* ---- INIT + Event listeners (ei inline onclick) ---- */
+function afterLoad(){ try{
+  renderPlayers(); renderTeams(); renderGameList(); renderScoreboards(); renderCard();
+  document.getElementById('scoreMode').value='players';
+} catch(e){ showError(e.message); } }
+
+function initListeners(){
+  // Pelaajat
+  document.getElementById('addPlayerBtn').addEventListener('click', addPlayerFromInput);
+  document.getElementById('resetPlayersBtn').addEventListener('click', resetPlayers);
+  document.getElementById('players').addEventListener('click', (e)=>{
+    const btn=e.target.closest('button[data-act="remove-player"]'); if(btn){ removePlayer(Number(btn.dataset.index)); }
+  });
+  // Joukkueet
+  document.getElementById('addTeamBtn').addEventListener('click', addTeamFromInput);
+  document.getElementById('resetTeamsBtn').addEventListener('click', resetTeams);
+  document.getElementById('teams').addEventListener('click',(e)=>{
+    const rm=e.target.closest('button[data-act="remove-team"]'); if(rm){ removeTeam(Number(rm.dataset.index)); return; }
+    const add=e.target.closest('button[data-act="add-member"]'); if(add){ addMember(Number(add.dataset.index)); return; }
+  });
+  // Turnaus/gamelist (delegointi checkboxeille)
+  document.getElementById('gamelist').addEventListener('change',(e)=>{
+    const cb=e.target.closest('input[type="checkbox"][data-act="toggle-game"]'); if(cb){ const id=cb.dataset.id; if(cb.checked) state.selectedGames.add(id); else state.selectedGames.delete(id); save(); }
+  });
+  document.getElementById('startTournamentBtn').addEventListener('click', startTournament);
+  document.getElementById('selectAllBtn').addEventListener('click', ()=>{ state.selectedGames=new Set(games.map(g=>g.id)); save(); renderGameList(); });
+  document.getElementById('clearSelBtn').addEventListener('click', ()=>{ state.selectedGames=new Set(); save(); renderGameList(); });
+  document.getElementById('prevBtn').addEventListener('click', prevItem);
+  document.getElementById('nextBtn').addEventListener('click', nextItem);
+  document.getElementById('cheaterBtn').addEventListener('click', rollCheater);
+  // Pisteet delegointi
+  document.getElementById('scorePlayers').addEventListener('click',(e)=>{
+    const btn=e.target.closest('button[data-act]'); if(!btn) return;
+    const act=btn.dataset.act, name=btn.dataset.name;
+    if(act==='p+1') addPtsPlayer(name,1);
+    else if(act==='p-1') addPtsPlayer(name,-1);
+    else if(act==='p+...'){ const v=prompt('Pisteet (voi olla myös -):','2'); if(v!==null){ const n=parseInt(v,10)||0; addPtsPlayer(name,n);}}
+  });
+  document.getElementById('scoreTeams').addEventListener('click',(e)=>{
+    const btn=e.target.closest('button[data-act]'); if(!btn) return;
+    const act=btn.dataset.act, name=btn.dataset.name;
+    if(act==='t+1') addPtsTeam(name,1);
+    else if(act==='t-1') addPtsTeam(name,-1);
+    else if(act==='t+...'){ const v=prompt('Pisteet (voi olla myös -):','2'); if(v!==null){ const n=parseInt(v,10)||0; addPtsTeam(name,n);}}
+  });
+  // Tallennus
+  document.getElementById('exportBtn').addEventListener('click', exportJSON);
+  document.getElementById('importBtn').addEventListener('click', importJSON);
+  document.getElementById('clearAllBtn').addEventListener('click', clearAll);
+  // Tabs scroll
+  document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+    document.querySelector(t.dataset.target)?.scrollIntoView({behavior:'smooth', block:'center'});
+  }));
+}
+
+function boot(){ try{ load(); if(!(state.selectedGames && state.selectedGames.size)) state.selectedGames=new Set(['music','code','draw','alias','spyfree','spyeasy','spyhard']); save(); renderGameList(); afterLoad(); initListeners(); }catch(e){ showError(e.message); } }
+boot();
+</script>
+
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/pikkujoulukisa/sw.js').catch(e => console.log('SW fail', e));
+  });
+}
+</script>
+</body>
+</html>
